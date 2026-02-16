@@ -109,10 +109,11 @@ npm run preview
 
 1. **Open** http://localhost:5173/ in your browser
 2. **Upload** your Fidelity GPS CSV file (drag & drop or click to browse)
+   - **Sample Portfolio**: A sample file (`sample-portfolio.csv`) is included in the project root for testing. Upload it to see the analyzer in action with ~$6M portfolio across multiple accounts (John Doe and Jill Doe)
 3. **View Analysis**:
    - **Overview**: Key metrics and top holdings
-   - **By Asset Class**: Breakdown by investment type
-   - **By Account**: Distribution across accounts
+   - **By Asset Class**: Breakdown by investment type (US Equity, Intl Equity, US Bonds, Intl Bonds, Cash)
+   - **By Account**: Distribution across accounts (Traditional IRA, Roth IRA, 401K, Taxable)
    - **By Holding**: Consolidated view of all positions
    - **By Style**: Morningstar style classification
    - **All Holdings**: Searchable table of all positions

@@ -12,65 +12,37 @@ const PAL = [
   "#0891b2","#9333ea","#65a30d","#c026d3","#0284c7","#f97316"
 ];
 
-const ASSET_CLASS_MAP = {
-  "Money Market": "Cash", "Money Market-Taxable": "Cash", Cash: "Cash",
-  "Intermediate Core Bond": "US Bonds", "Intermediate Core-Plus Bond": "US Bonds",
-  "Short Government": "US Bonds", "Long Government": "US Bonds",
-  "Global Bond-USD Hedged": "Intl Bonds", "Global Bond": "Intl Bonds",
-  "Foreign Large Blend": "Intl Equity", "Foreign Large Value": "Intl Equity",
-  "Foreign Large Growth": "Intl Equity", "Foreign Small/Mid Blend": "Intl Equity",
-  "Foreign Small/Mid Value": "Intl Equity", "Diversified Emerging Mkts": "Intl Equity",
-};
-
-const KNOWN_INTL = new Set(["VXUS","VEU","VFWAX","VTIAX","IXUS","VGTSX","FZILX","FTIHX","SWISX","BNDX","VTABX","IAGG"]);
-const KNOWN_BOND = new Set(["BND","VBTLX","VBMFX","AGG","SCHZ","FBND","FXNAX","BSV","BIV","BLV","BNDX","VTABX","IAGG","GOVT","TLT","IEF","SHY","TIPS","VTIP","SCHP"]);
-
-const ACCOUNT_LABELS = {};
-const classifyAccountType = (acct) => {
-  const a = acct.toLowerCase();
-  if (a.includes("roth ira")) return "Roth IRA";
-  if (a.includes("traditional ira") || a.includes("trad ira") || a.includes("rollover ira")) return "Traditional IRA";
-  if (a.includes("401k") || a.includes("401(k)")) return "401K";
-  if (a.includes("403b") || a.includes("403(b)")) return "403B";
-  if (a.includes("hsa")) return "HSA";
-  if (a.includes("529")) return "529";
-  if (a.includes("trust")) return "Trust";
-  if (a.includes("espp")) return "ESPP";
-  if (a.includes("checking") || a.includes("savings")) return "Bank";
-  return "Taxable";
-};
-
 const shortenAccount = (acct) => {
-  if (acct.length <= 30) return acct;
-  const type = classifyAccountType(acct);
-  if (type === "Trust") {
-    const m = acct.match(/Trust/i);
-    if (m) return "Revocable Trust";
-  }
+  if (acct.length <= 40) return acct;
   if (acct.includes(" - ")) {
     const parts = acct.split(" - ");
     if (parts.length >= 2) return parts.slice(0, 2).join(" - ").substring(0, 40);
   }
-  return acct.substring(0, 35) + "…";
+  return acct.substring(0, 37) + "…";
 };
 
-const acctTypeBadge = (t) => ({
-  "Taxable": "bg-orange-100 text-orange-700",
-  "Traditional IRA": "bg-purple-100 text-purple-700",
-  "Roth IRA": "bg-pink-100 text-pink-700",
-  "401K": "bg-violet-100 text-violet-700",
-  "403B": "bg-violet-100 text-violet-700",
-  "HSA": "bg-lime-100 text-lime-700",
-  "Trust": "bg-blue-100 text-blue-700",
-  "ESPP": "bg-amber-100 text-amber-700",
-  "Bank": "bg-gray-100 text-gray-600",
-  "529": "bg-cyan-100 text-cyan-700",
-}[t] || "bg-gray-100 text-gray-600");
+const getAccountTypeBadgeColor = (accountName) => {
+  const a = accountName.toLowerCase();
+  if (a.includes("roth")) return "bg-pink-100 text-pink-700";
+  if (a.includes("traditional") || a.includes("trad") || a.includes("rollover")) return "bg-purple-100 text-purple-700";
+  if (a.includes("401k") || a.includes("401(k)")) return "bg-violet-100 text-violet-700";
+  if (a.includes("403b") || a.includes("403(b)")) return "bg-violet-100 text-violet-700";
+  if (a.includes("hsa")) return "bg-lime-100 text-lime-700";
+  if (a.includes("529")) return "bg-cyan-100 text-cyan-700";
+  if (a.includes("trust")) return "bg-blue-100 text-blue-700";
+  if (a.includes("espp")) return "bg-amber-100 text-amber-700";
+  if (a.includes("checking") || a.includes("savings")) return "bg-gray-100 text-gray-600";
+  return "bg-orange-100 text-orange-700"; // Default Taxable
+};
 
-const assetClassColor = (ac) => ({
-  "US Equity": "blue", "Intl Equity": "teal", "US Bonds": "emerald",
-  "Intl Bonds": "indigo", "Fixed Income": "amber", Cash: "gray",
-}[ac] || "gray");
+const getAssetClassColor = (assetClass) => {
+  const lower = assetClass.toLowerCase();
+  if (lower.includes("bond") || lower.includes("fixed")) return "emerald";
+  if (lower.includes("intl") || lower.includes("international") || lower.includes("foreign")) return "teal";
+  if (lower.includes("equity") || lower.includes("stock")) return "blue";
+  if (lower.includes("cash") || lower.includes("money market")) return "gray";
+  return "slate";
+};
 
 /* ───────── helpers ───────── */
 const fmt = (v) => {
@@ -86,18 +58,35 @@ const parseVal = (s) => {
   return isNaN(n) ? 0 : n;
 };
 
-const classifyAssetClass = (row) => {
-  const { symbol, morningstar, type, bondStyle } = row;
-  if (type === "Cash") return "Cash";
-  if (morningstar && ASSET_CLASS_MAP[morningstar]) return ASSET_CLASS_MAP[morningstar];
-  if (KNOWN_BOND.has(symbol)) return symbol === "BNDX" || symbol === "VTABX" || symbol === "IAGG" ? "Intl Bonds" : "US Bonds";
-  if (KNOWN_INTL.has(symbol)) return symbol === "BNDX" || symbol === "VTABX" || symbol === "IAGG" ? "Intl Bonds" : "Intl Equity";
-  if (morningstar && (morningstar.includes("Bond") || morningstar.includes("Government"))) return "US Bonds";
-  if (bondStyle && bondStyle !== "- -" && bondStyle !== "--" && bondStyle.trim()) return "Fixed Income";
-  if (type === "Fixed Income") return "Fixed Income";
-  if (morningstar && morningstar.includes("Foreign")) return "Intl Equity";
-  if (morningstar && (morningstar.includes("Money Market") || morningstar === "Money Market-Taxable")) return "Cash";
-  return "US Equity";
+const getAssetClassFromCSV = (row) => {
+  const { morningstar, type, stockStyle, bondStyle } = row;
+  
+  // Normalize based on CSV values
+  const classify = (value) => {
+    if (!value || !value.trim()) return null;
+    const v = value.toLowerCase();
+    
+    // Bond/Fixed Income classification
+    if (v.includes("bond") || v.includes("fixed income") || v.includes("government") || v.includes("corporate")) return "US Bonds";
+    if (v.includes("international bond") || v.includes("global bond") || v.includes("foreign bond")) return "Intl Bonds";
+    if (v.includes("money market") || v.includes("cash")) return "Cash";
+    
+    // Equity classification
+    if (v.includes("foreign") || v.includes("international") || v.includes("intl") || v.includes("emerging")) return "Intl Equity";
+    if (v.includes("stock") || v.includes("equity") || v.includes("blend") || v.includes("growth") || v.includes("value") || v.includes("large") || v.includes("small") || v.includes("mid")) return "US Equity";
+    
+    return null;
+  };
+  
+  // Try to classify from available fields in priority order
+  let classification = classify(morningstar) || classify(type) || classify(stockStyle) || classify(bondStyle);
+  
+  // If we couldn't classify, return the original value for display but mark as "Other"
+  if (!classification) {
+    return morningstar || type || stockStyle || bondStyle || "Other";
+  }
+  
+  return classification;
 };
 
 /* ───────── CSV parser ───────── */
@@ -145,20 +134,26 @@ const parseCSV = (text) => {
     if (desc.toLowerCase().includes("data and information")) continue;
 
     const displaySymbol = symbol || (type === "Cash" ? "CASH" : desc.substring(0, 8) || "OTHER");
+    
+    // Clean CSV values (remove placeholder text)
+    const cleanValue = (v) => v.replace(/- -|--|N\/A|n\/a/gi, "").trim();
+    const cleanMorningstar = cleanValue(morningstar);
+    const cleanType = cleanValue(type);
+    const cleanStockStyle = cleanValue(stockStyle);
+    const cleanBondStyle = cleanValue(bondStyle);
 
     holdings.push({
       symbol: displaySymbol,
       desc: desc || displaySymbol,
       account,
       accountShort: shortenAccount(account),
-      accountType: classifyAccountType(account),
-      type: type || "Other",
-      morningstar: morningstar.replace(/- -|--/g, "").trim(),
-      stockStyle: stockStyle.replace(/- -|--/g, "").trim(),
-      bondStyle: bondStyle ? bondStyle.replace(/- -|--/g, "").trim() : "",
+      type: cleanType || "Other",
+      morningstar: cleanMorningstar,
+      stockStyle: cleanStockStyle,
+      bondStyle: cleanBondStyle,
       qty, price, value,
       weight,
-      assetClass: classifyAssetClass({ symbol: displaySymbol, morningstar, type, bondStyle }),
+      assetClass: getAssetClassFromCSV({ morningstar: cleanMorningstar, type: cleanType, stockStyle: cleanStockStyle, bondStyle: cleanBondStyle }),
     });
   }
 
@@ -211,7 +206,7 @@ const HoldingsTable = ({ data, total, showAccount = true, showAssetClass = false
               {showAccount && (
                 <td className="py-2 px-3">
                   <div className="text-sm text-gray-700">{h.accountShort}</div>
-                  <Badge className={acctTypeBadge(h.accountType)}>{h.accountType}</Badge>
+                  <Badge className={getAccountTypeBadgeColor(h.account)}>{h.account}</Badge>
                 </td>
               )}
               {showAssetClass && (
@@ -272,7 +267,7 @@ const ConsolidatedTable = ({ groups, total, onSelect, selected }) => {
                 <div className="text-xs text-gray-400 truncate max-w-52">{g.desc}</div>
               </td>
               <td className="py-2.5 px-3">
-                <Badge className={`bg-${assetClassColor(g.assetClass)}-100 text-${assetClassColor(g.assetClass)}-700`}>{g.assetClass}</Badge>
+                <Badge className={`bg-${getAssetClassColor(g.assetClass)}-100 text-${getAssetClassColor(g.assetClass)}-700`}>{g.assetClass}</Badge>
               </td>
               <td className="py-2.5 px-3 text-center">
                 {g.accounts.length > 1 ? (
@@ -412,11 +407,11 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
     const m = {};
     holdings.forEach(h => {
       const key = h.accountShort;
-      if (!m[key]) m[key] = { items: [], type: h.accountType };
+      if (!m[key]) m[key] = { items: [], account: h.account };
       m[key].items.push(h);
     });
     return Object.entries(m)
-      .map(([name, { items, type }]) => ({ name, items, type, value: items.reduce((s, h) => s + h.value, 0) }))
+      .map(([name, { items, account }]) => ({ name, items, account, value: items.reduce((s, h) => s + h.value, 0) }))
       .sort((a, b) => b.value - a.value);
   }, [holdings]);
 
@@ -477,7 +472,7 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
           h.desc.toLowerCase().includes(term) ||
           h.accountShort.toLowerCase().includes(term) ||
           h.assetClass.toLowerCase().includes(term) ||
-          h.accountType.toLowerCase().includes(term) ||
+          h.account.toLowerCase().includes(term) ||
           h.type.toLowerCase().includes(term)
         )
       : holdings;
@@ -678,7 +673,7 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
                 {assetClassGroups.map(g => (
                   <CategoryCard key={g.name} label={g.name} value={g.value} total={total}
                     isActive={selected === g.name} onClick={() => setSelected(selected === g.name ? null : g.name)}
-                    count={g.items.length} colorClass={assetClassColor(g.name)} />
+                    count={g.items.length} colorClass={getAssetClassColor(g.name)} />
                 ))}
               </div>
             </div>
@@ -725,7 +720,7 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-sm text-gray-800 truncate">{g.name}</span>
-                        <Badge className={acctTypeBadge(g.type)}>{g.type}</Badge>
+                        <Badge className={getAccountTypeBadgeColor(g.account)}>{g.account}</Badge>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
@@ -741,8 +736,8 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
               <div className="pt-4 border-t border-gray-200">
                 <div className="flex items-center gap-3 mb-3">
                   <h3 className="font-bold text-gray-800 text-lg">{selected}</h3>
-                  <Badge className={acctTypeBadge(accountGroups.find(g => g.name === selected).type)}>
-                    {accountGroups.find(g => g.name === selected).type}
+                  <Badge className={getAccountTypeBadgeColor(accountGroups.find(g => g.name === selected).account)}>
+                    {accountGroups.find(g => g.name === selected).account}
                   </Badge>
                   <span className="text-sm text-gray-500">{fmt(accountGroups.find(g => g.name === selected).value)}</span>
                   <button onClick={() => setSelected(null)} className="ml-auto text-xs text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md transition-colors">✕ Close</button>
