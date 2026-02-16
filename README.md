@@ -35,7 +35,7 @@ nvm use 20
 
 1. **Clone or navigate to the project directory:**
    ```bash
-   cd /Users/suhasjog/code/asset_allocation
+   cd  SOURCE_DIRECTORY/assset_allocation
    ```
 
 2. **Install dependencies:**
