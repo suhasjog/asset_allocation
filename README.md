@@ -63,6 +63,35 @@ npm run build
 
 Output will be in the `dist/` directory.
 
+### Deploy to GitHub Pages
+
+1. **Initialize a git repository** (if not already done):
+   ```bash
+   git init
+   git add .
+   git commit -m "Initial commit"
+   git remote add origin https://github.com/YOUR_USERNAME/asset_allocation.git
+   git branch -M main
+   git push -u origin main
+   ```
+
+2. **Enable GitHub Pages** in your repository settings:
+   - Go to Settings → Pages
+   - Set source to **Deploy from a branch**
+   - Select **`gh-pages` branch**
+
+3. **Deploy using the deploy script**:
+   ```bash
+   npm run deploy
+   ```
+
+   This will build the app, create a `gh-pages` branch, and push the `dist/` folder to GitHub Pages.
+
+4. **Access your app** at:
+   ```
+   https://YOUR_USERNAME.github.io/asset_allocation/
+   ```
+
 ### Preview Production Build
 
 Test the production build locally:
