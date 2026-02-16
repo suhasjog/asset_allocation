@@ -301,6 +301,7 @@ const ChartTooltip = ({ active, payload }) => {
 const UploadScreen = ({ onData }) => {
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState(null);
+  const [loadingSample, setLoadingSample] = useState(false);
   const fileRef = useRef();
 
   const processFile = useCallback((file) => {
@@ -324,6 +325,24 @@ const UploadScreen = ({ onData }) => {
   }, [onData]);
 
   const handleDrop = (e) => { e.preventDefault(); setDragOver(false); processFile(e.dataTransfer.files[0]); };
+
+  const loadSample = useCallback(async () => {
+    setError(null);
+    setLoadingSample(true);
+    try {
+      const base = import.meta.env.BASE_URL;
+      const res = await fetch(`${base}sample-portfolio.csv`);
+      if (!res.ok) throw new Error("Could not fetch sample file");
+      const text = await res.text();
+      const result = parseCSV(text);
+      if (result.holdings.length === 0) throw new Error("No holdings found in sample CSV");
+      onData(result);
+    } catch (err) {
+      setError(`Sample load error: ${err.message}`);
+    } finally {
+      setLoadingSample(false);
+    }
+  }, [onData]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center p-6">
@@ -357,6 +376,13 @@ const UploadScreen = ({ onData }) => {
           </div>
           <p className="text-white font-medium">Drop your CSV here or click to browse</p>
           <p className="text-slate-400 text-sm mt-1">Accepts Fidelity Guided Portfolio Summary (GPS) exports</p>
+        </div>
+
+        <div className="mt-4 text-center">
+          <button onClick={loadSample} disabled={loadingSample}
+            className="text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors disabled:opacity-50">
+            {loadingSample ? "Loading..." : "Or click here to load a sample portfolio"}
+          </button>
         </div>
 
         {error && (

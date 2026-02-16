@@ -1,0 +1,23 @@
+As of date: 02/15/2026,,,,,,,,,,
+Symbol ,Description ,Account ,Investment Type ,Morningstar Category ,Stock Style Category ,Bond Style Category ,Quantity ,Price ,Total Value ,Portfolio Weight 
+VOO,Vanguard S&P 500 ETF,John Doe - Traditional IRA - 4521089,Exchange Traded Product,Large Blend,Large Blend,- -,"$2,850.00",$599.85,"$1,709,597.50",28.49%
+BND,Vanguard Total Bond Market ETF,John Doe - Traditional IRA - 4521089,Exchange Traded Product,Intermediate Core Bond,- -,Intermediate Investment Grade,"$8,200.00",$74.92,"$614,344.00",10.22%
+VMFXX,Vanguard Federal Money Market Fund,John Doe - Traditional IRA - 4521089,Mutual Fund,Money Market-Taxable,- -,- -,"$185,000.00",$1.00,"$185,000.00",3.08%
+VXUS,Vanguard Total Intl Stock Index Fund ETF,John Doe - Roth IRA - 6734521,Exchange Traded Product,Foreign Large Blend,Large Blend,- -,"$5,200.00",$82.15,"$427,180.00",7.11%
+VEA,Vanguard FTSE Developed Markets ETF,John Doe - Roth IRA - 6734521,Exchange Traded Product,Foreign Large Blend,Large Blend,- -,"$3,800.00",$55.42,"$210,596.00",3.50%
+SCHZ,Schwab US Aggregate Bond ETF,John Doe - Roth IRA - 6734521,Exchange Traded Product,Intermediate Core Bond,- -,Intermediate Investment Grade,"$6,500.00",$48.75,"$316,875.00",5.28%
+SPAXX,Fidelity Government Money Market Fund,John Doe - Roth IRA - 6734521,Mutual Fund,Money Market-Taxable,- -,- -,"$125,000.00",$1.00,"$125,000.00",2.08%
+QQQ,Invesco QQQ Trust,John Doe - Taxable Brokerage - 7890123,Exchange Traded Product,Large Growth,Large Growth,- -,"$2,100.00",$429.55,"$902,055.00",15.01%
+SCHX,Schwab US Large-Cap ETF,John Doe - Taxable Brokerage - 7890123,Exchange Traded Product,Large Blend,Large Blend,- -,"$4,500.00",$95.30,"$428,850.00",7.13%
+VUG,Vanguard Growth ETF,John Doe - Taxable Brokerage - 7890123,Exchange Traded Product,Large Growth,Large Growth,- -,"$800.00",$495.20,"$396,160.00",6.58%
+VTV,Vanguard Value ETF,John Doe - Taxable Brokerage - 7890123,Exchange Traded Product,Large Value,Large Value,- -,"$1,200.00",$160.45,"$192,540.00",3.20%
+BNDX,Vanguard Total Intl Bond Index Fund ETF,John Doe - Taxable Brokerage - 7890123,Exchange Traded Product,Global Bond-USD Hedged,- -,Intermediate Investment Grade,"$6,200.00",$48.65,"$301,630.00",5.02%
+AGG,iShares Core US Aggregate Bond ETF,John Doe - Taxable Brokerage - 7890123,Exchange Traded Product,Intermediate Core Bond,- -,Intermediate Investment Grade,"$4,800.00",$95.10,"$456,480.00",7.59%
+,Generic Short Term,John Doe - Taxable Brokerage - 7890123,Cash,- -,- -,- -,"$225,000.00",$1.00,"$225,000.00",3.74%
+SCHB,Schwab US Broad Market ETF,John Doe - 401K - 9821756,Exchange Traded Product,Large Blend,Large Blend,- -,"$2,200.00",$110.75,"$243,650.00",4.05%
+VBTLX,Vanguard Total Bond Market Index Fund,John Doe - 401K - 9821756,Mutual Fund,Intermediate Core Bond,- -,Intermediate Investment Grade,"$12,000.00",$9.85,"$118,200.00",1.97%
+,Generic Money Market,John Doe - 401K - 9821756,Cash,- -,- -,- -,"$85,000.00",$1.00,"$85,000.00",1.41%
+VTI,Vanguard Total Stock Market Index Fund ETF,Jill Doe - Traditional IRA - 2345678,Exchange Traded Product,Large Blend,Large Blend,- -,"$1,900.00",$336.45,"$639,255.00",10.64%
+VWO,Vanguard FTSE Emerging Markets ETF,Jill Doe - Traditional IRA - 2345678,Exchange Traded Product,Diversified Emerging Markets,- -,- -,"$4,500.00",$48.20,"$216,900.00",3.61%
+IAGG,iShares Core Global Aggregate Bond ETF,Jill Doe - Traditional IRA - 2345678,Exchange Traded Product,Global Bond-USD Hedged,- -,Intermediate Investment Grade,"$5,200.00",$52.10,"$270,920.00",4.51%
+,Generic Short Term,Jill Doe - Traditional IRA - 2345678,Cash,- -,- -,- -,"$95,000.00",$1.00,"$95,000.00",1.58%
