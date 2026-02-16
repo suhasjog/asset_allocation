@@ -2,6 +2,10 @@
 
 A React-based web application for analyzing investment portfolios by uploading Fidelity Guided Portfolio Summary (GPS) CSV exports. Visualize asset allocation, account breakdown, holdings distribution, and more with interactive charts.
 
+## See it in action : https://suhasjog.github.io/asset_allocation/
+
+A sample dummy-portfolio is includeded in the exmaple, to get the feel for the UI
+
 ## Features
 
 - **CSV Upload**: Import your Fidelity GPS portfolio export

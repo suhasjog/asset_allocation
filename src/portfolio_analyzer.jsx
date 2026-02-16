@@ -402,6 +402,11 @@ const UploadScreen = ({ onData }) => {
 
         <p className="text-slate-600 text-xs text-center mt-6">
           All data is processed locally in your browser. Nothing is uploaded to any server.
+          <span className="mx-1">·</span>
+          <a href="https://github.com/suhasjog/asset_allocation" target="_blank" rel="noopener noreferrer"
+            className="text-slate-500 hover:text-blue-400 transition-colors underline underline-offset-2">
+            Source on GitHub
+          </a>
         </p>
       </div>
     </div>
@@ -862,6 +867,11 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
       <div className="max-w-6xl mx-auto px-4 py-4 mt-6">
         <p className="text-xs text-gray-400 text-center">
           All data processed locally in your browser · For informational purposes only · Not financial advice
+          <span className="mx-1">·</span>
+          <a href="https://github.com/suhasjog/asset_allocation" target="_blank" rel="noopener noreferrer"
+            className="text-gray-500 hover:text-blue-500 transition-colors underline underline-offset-2">
+            Source on GitHub
+          </a>
         </p>
       </div>
     </div>
