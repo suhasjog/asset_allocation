@@ -1,9 +1,12 @@
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Legend
 } from "recharts";
 import * as Papa from "papaparse";
+
+/* ───────── visitor tracking ───────── */
+const TRACKING_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzx2IqwS2Y9y-z-QCtw9h3pD7oS8t3LCLkOouI07CjN5rYzINZKwMQ2bfG6-ES0dw-Wzg/exec";
 
 /* ───────── constants ───────── */
 const PAL = [
@@ -401,7 +404,7 @@ const UploadScreen = ({ onData }) => {
         </div>
 
         <p className="text-slate-600 text-xs text-center mt-6">
-          All data is processed locally in your browser. Nothing is uploaded to any server.
+          Your portfolio data is processed entirely in your browser and is never uploaded. Anonymous visit info (IP, location) may be collected for analytics.
           <span className="mx-1">·</span>
           <a href="https://github.com/suhasjog/asset_allocation" target="_blank" rel="noopener noreferrer"
             className="text-slate-500 hover:text-blue-400 transition-colors underline underline-offset-2">
@@ -881,6 +884,27 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
 /* ───────── ROOT APP ───────── */
 export default function App() {
   const [data, setData] = useState(null);
+
+  useEffect(() => {
+    if (!TRACKING_SCRIPT_URL || TRACKING_SCRIPT_URL.startsWith("PASTE_YOUR")) return;
+    fetch("https://ipapi.co/json/")
+      .then((r) => r.json())
+      .then((geo) => {
+        fetch(TRACKING_SCRIPT_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            ip: geo.ip,
+            city: geo.city,
+            region: geo.region,
+            country: geo.country_name,
+            userAgent: navigator.userAgent,
+            referrer: document.referrer,
+            pageUrl: window.location.href,
+          }),
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   if (!data) return <UploadScreen onData={setData} />;
   return <Dashboard holdings={data.holdings} asOfDate={data.asOfDate} onReset={() => setData(null)} />;
