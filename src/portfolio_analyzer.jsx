@@ -890,19 +890,16 @@ export default function App() {
     fetch("https://ipapi.co/json/")
       .then((r) => r.json())
       .then((geo) => {
-        fetch(TRACKING_SCRIPT_URL, {
-          method: "POST",
-          mode: "no-cors",
-          body: JSON.stringify({
-            ip: geo.ip,
-            city: geo.city,
-            region: geo.region,
-            country: geo.country_name,
-            userAgent: navigator.userAgent,
-            referrer: document.referrer,
-            pageUrl: window.location.href,
-          }),
+        const params = new URLSearchParams({
+          ip: geo.ip || "",
+          city: geo.city || "",
+          region: geo.region || "",
+          country: geo.country_name || "",
+          userAgent: navigator.userAgent,
+          referrer: document.referrer,
+          pageUrl: window.location.href,
         });
+        fetch(`${TRACKING_SCRIPT_URL}?${params}`, { mode: "no-cors" });
       })
       .catch(() => {});
   }, []);
