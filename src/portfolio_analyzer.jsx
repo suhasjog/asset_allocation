@@ -899,7 +899,7 @@ export default function App() {
           referrer: document.referrer,
           pageUrl: window.location.href,
         });
-        fetch(`${TRACKING_SCRIPT_URL}?${params}`, { mode: "no-cors" });
+        new Image().src = `${TRACKING_SCRIPT_URL}?${params}`;
       })
       .catch(() => {});
   }, []);
