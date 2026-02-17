@@ -6,7 +6,8 @@ import {
 import * as Papa from "papaparse";
 
 /* ───────── visitor tracking ───────── */
-const TRACKING_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzx2IqwS2Y9y-z-QCtw9h3pD7oS8t3LCLkOouI07CjN5rYzINZKwMQ2bfG6-ES0dw-Wzg/exec";
+const TRACKING_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbydp8UN9OtEudLnbL-ySBKMEgVrp9iP9qa7X6MoE1mxAuuxGVnemsiU69CllGWF2AgSmw/exec"
+
 
 /* ───────── constants ───────── */
 const PAL = [
