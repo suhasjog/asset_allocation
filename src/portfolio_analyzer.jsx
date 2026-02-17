@@ -892,6 +892,7 @@ export default function App() {
       .then((geo) => {
         fetch(TRACKING_SCRIPT_URL, {
           method: "POST",
+          mode: "no-cors",
           body: JSON.stringify({
             ip: geo.ip,
             city: geo.city,
