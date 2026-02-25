@@ -70,9 +70,10 @@ const getAssetClassFromCSV = (row) => {
     if (!value || !value.trim()) return null;
     const v = value.toLowerCase();
     
-    // Bond/Fixed Income classification
-    if (v.includes("bond") || v.includes("fixed income") || v.includes("government") || v.includes("corporate")) return "US Bonds";
+    // Bond/Fixed Income classification — Intl Bonds must be checked BEFORE US Bonds
+    // because "global bond" / "foreign bond" contain the substring "bond"
     if (v.includes("international bond") || v.includes("global bond") || v.includes("foreign bond")) return "Intl Bonds";
+    if (v.includes("bond") || v.includes("fixed income") || v.includes("government") || v.includes("corporate")) return "US Bonds";
     if (v.includes("money market") || v.includes("cash")) return "Cash";
     
     // Equity classification
@@ -91,6 +92,21 @@ const getAssetClassFromCSV = (row) => {
   }
   
   return classification;
+};
+
+const consolidateBySymbol = (items) => {
+  const m = {};
+  items.forEach(h => {
+    if (!m[h.symbol]) m[h.symbol] = { items: [], desc: h.desc, assetClass: h.assetClass };
+    m[h.symbol].items.push(h);
+  });
+  return Object.entries(m)
+    .map(([symbol, { items: its, desc, assetClass }]) => ({
+      symbol, desc, assetClass, items: its,
+      value: its.reduce((s, h) => s + h.value, 0),
+      accounts: [...new Set(its.map(h => h.accountShort))],
+    }))
+    .sort((a, b) => b.value - a.value);
 };
 
 /* ───────── CSV parser ───────── */
@@ -235,10 +251,11 @@ const HoldingsTable = ({ data, total, showAccount = true, showAssetClass = false
         </tbody>
         <tfoot>
           <tr className="bg-gray-50 border-t-2 border-gray-300">
-            <td colSpan={showAccount ? (showAssetClass ? 6 : 5) : (showAssetClass ? 5 : 4)} className="py-2.5 px-3 font-bold text-sm text-gray-700">
+            <td colSpan={3 + (showAccount ? 1 : 0) + (showAssetClass ? 1 : 0)} className="py-2.5 px-3 font-bold text-sm text-gray-700">
               Subtotal ({sorted.length} items)
             </td>
             <td className="py-2.5 px-3 text-right font-bold text-sm text-gray-900">{fmt(subtotal)}</td>
+            <td className="py-2.5 px-3 text-right font-bold text-sm text-gray-900">{(subtotal / total * 100).toFixed(2)}%</td>
           </tr>
         </tfoot>
       </table>
@@ -285,6 +302,15 @@ const ConsolidatedTable = ({ groups, total, onSelect, selected }) => {
             </tr>
           ))}
         </tbody>
+        <tfoot>
+          <tr className="bg-gray-50 border-t-2 border-gray-300">
+            <td colSpan={3} className="py-2.5 px-3 font-bold text-sm text-gray-700">
+              Total ({groups.length} holding{groups.length !== 1 ? "s" : ""})
+            </td>
+            <td className="py-2.5 px-3 text-right font-bold text-sm text-gray-900">{fmt(groups.reduce((s, g) => s + g.value, 0))}</td>
+            <td className="py-2.5 px-3 text-right font-bold text-sm text-gray-900">{(groups.reduce((s, g) => s + g.value, 0) / total * 100).toFixed(2)}%</td>
+          </tr>
+        </tfoot>
       </table>
     </div>
   );
@@ -417,6 +443,22 @@ const UploadScreen = ({ onData }) => {
   );
 };
 
+const SearchInput = ({ value, onChange, placeholder, count, total }) => (
+  <div className="flex items-center gap-3">
+    <div className="relative flex-1">
+      <input
+        type="text" placeholder={placeholder}
+        value={value} onChange={e => onChange(e.target.value)}
+        className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm"
+      />
+      <svg className="absolute left-3 top-3 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+    </div>
+    <span className="text-xs text-gray-400 whitespace-nowrap">{count} of {total}</span>
+  </div>
+);
+
 /* ───────── MAIN DASHBOARD ───────── */
 const Dashboard = ({ holdings, asOfDate, onReset }) => {
   const [view, setView] = useState("overview");
@@ -490,7 +532,7 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
     const usEq = assetClassGroups.find(g => g.name === "US Equity")?.value || 0;
     const intlEq = assetClassGroups.find(g => g.name === "Intl Equity")?.value || 0;
     const invested = equityVal + bondVal;
-    const individualStocks = holdings.filter(h => h.type === "Equity").reduce((s, h) => s + h.value, 0);
+    const individualStocks = holdings.filter(h => h.type.toLowerCase() === "equity").reduce((s, h) => s + h.value, 0);
     return { equityVal, bondVal, cashVal, usEq, intlEq, invested, individualStocks,
       stockPct: invested > 0 ? (equityVal / invested * 100).toFixed(0) : 0,
       bondPct: invested > 0 ? (bondVal / invested * 100).toFixed(0) : 0,
@@ -513,6 +555,44 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
       : holdings;
     return [...list].sort((a, b) => b.value - a.value);
   }, [holdings, searchTerm]);
+
+  const filteredAssetClassGroups = useMemo(() => {
+    if (!searchTerm) return assetClassGroups;
+    const t = searchTerm.toLowerCase();
+    return assetClassGroups.filter(g =>
+      g.name.toLowerCase().includes(t) ||
+      g.items.some(h => h.symbol.toLowerCase().includes(t) || h.desc.toLowerCase().includes(t))
+    );
+  }, [assetClassGroups, searchTerm]);
+
+  const filteredAccountGroups = useMemo(() => {
+    if (!searchTerm) return accountGroups;
+    const t = searchTerm.toLowerCase();
+    return accountGroups.filter(g =>
+      g.name.toLowerCase().includes(t) ||
+      g.account.toLowerCase().includes(t) ||
+      g.items.some(h => h.symbol.toLowerCase().includes(t) || h.desc.toLowerCase().includes(t))
+    );
+  }, [accountGroups, searchTerm]);
+
+  const filteredHoldingGroups = useMemo(() => {
+    if (!searchTerm) return holdingGroups;
+    const t = searchTerm.toLowerCase();
+    return holdingGroups.filter(g =>
+      g.symbol.toLowerCase().includes(t) ||
+      g.desc.toLowerCase().includes(t) ||
+      g.assetClass.toLowerCase().includes(t)
+    );
+  }, [holdingGroups, searchTerm]);
+
+  const filteredStyleGroups = useMemo(() => {
+    if (!searchTerm) return styleGroups;
+    const t = searchTerm.toLowerCase();
+    return styleGroups.filter(g =>
+      g.name.toLowerCase().includes(t) ||
+      g.items.some(h => h.symbol.toLowerCase().includes(t) || h.desc.toLowerCase().includes(t))
+    );
+  }, [styleGroups, searchTerm]);
 
   const views = [
     { id: "overview", label: "Overview" },
@@ -572,7 +652,7 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-6xl mx-auto flex px-3 overflow-x-auto">
           {views.map(v => (
-            <button key={v.id} onClick={() => { setView(v.id); setSelected(null); }}
+            <button key={v.id} onClick={() => { setView(v.id); setSelected(null); setSearchTerm(""); }}
               className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
                 view === v.id ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"
               }`}>
@@ -689,14 +769,17 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
         {/* ===== ASSET CLASS ===== */}
         {view === "asset_class" && (
           <div className="space-y-4">
+            <SearchInput value={searchTerm} onChange={setSearchTerm}
+              placeholder="Filter by asset class or symbol…"
+              count={filteredAssetClassGroups.length} total={assetClassGroups.length} />
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="lg:w-72 flex-shrink-0">
                 <ResponsiveContainer width="100%" height={260}>
                   <PieChart>
-                    <Pie data={assetClassGroups.map(g => ({ name: g.name, value: g.value }))}
+                    <Pie data={filteredAssetClassGroups.map(g => ({ name: g.name, value: g.value }))}
                       dataKey="value" cx="50%" cy="50%" innerRadius={50} outerRadius={95}
-                      onClick={(_, i) => setSelected(selected === assetClassGroups[i]?.name ? null : assetClassGroups[i]?.name)}>
-                      {assetClassGroups.map((g, i) => (
+                      onClick={(_, i) => setSelected(selected === filteredAssetClassGroups[i]?.name ? null : filteredAssetClassGroups[i]?.name)}>
+                      {filteredAssetClassGroups.map((g, i) => (
                         <Cell key={i} fill={PAL[i]} stroke={selected === g.name ? "#1e3a8a" : "#fff"} strokeWidth={selected === g.name ? 3 : 1} />
                       ))}
                     </Pie>
@@ -705,7 +788,7 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
                 </ResponsiveContainer>
               </div>
               <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {assetClassGroups.map(g => (
+                {filteredAssetClassGroups.map(g => (
                   <CategoryCard key={g.name} label={g.name} value={g.value} total={total}
                     isActive={selected === g.name} onClick={() => setSelected(selected === g.name ? null : g.name)}
                     count={g.items.length} colorClass={getAssetClassColor(g.name)} />
@@ -719,7 +802,11 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
                   <span className="text-sm text-gray-500">{fmt(assetClassGroups.find(g => g.name === selected).value)} ({pct(assetClassGroups.find(g => g.name === selected).value)})</span>
                   <button onClick={() => setSelected(null)} className="ml-auto text-xs text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md transition-colors">✕ Close</button>
                 </div>
-                <HoldingsTable data={assetClassGroups.find(g => g.name === selected).items} total={total} />
+                <p className="text-xs text-gray-400 mb-2">Same symbol held in multiple accounts is consolidated into one row.</p>
+                <ConsolidatedTable
+                  groups={consolidateBySymbol(assetClassGroups.find(g => g.name === selected).items)}
+                  total={total} selected={null} onSelect={() => {}}
+                />
               </div>
             )}
           </div>
@@ -728,16 +815,19 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
         {/* ===== ACCOUNT ===== */}
         {view === "account" && (
           <div className="space-y-4">
+            <SearchInput value={searchTerm} onChange={setSearchTerm}
+              placeholder="Filter by account name or symbol…"
+              count={filteredAccountGroups.length} total={accountGroups.length} />
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="lg:w-80 flex-shrink-0">
-                <ResponsiveContainer width="100%" height={Math.max(accountGroups.length * 36, 200)}>
-                  <BarChart data={accountGroups.map(g => ({ name: g.name, value: g.value }))} layout="vertical" margin={{ left: 10 }}>
+                <ResponsiveContainer width="100%" height={Math.max(filteredAccountGroups.length * 36, 200)}>
+                  <BarChart data={filteredAccountGroups.map(g => ({ name: g.name, value: g.value }))} layout="vertical" margin={{ left: 10 }}>
                     <XAxis type="number" tickFormatter={v => v >= 1e6 ? `$${(v/1e6).toFixed(1)}M` : `$${(v/1e3).toFixed(0)}K`} fontSize={10} />
                     <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 10 }} />
                     <Tooltip content={<ChartTooltip />} />
                     <Bar dataKey="value" radius={[0, 4, 4, 0]}
-                      onClick={(d, i) => setSelected(selected === accountGroups[i]?.name ? null : accountGroups[i]?.name)}>
-                      {accountGroups.map((g, i) => (
+                      onClick={(d, i) => setSelected(selected === filteredAccountGroups[i]?.name ? null : filteredAccountGroups[i]?.name)}>
+                      {filteredAccountGroups.map((g, i) => (
                         <Cell key={i} fill={PAL[i % PAL.length]} stroke={selected === g.name ? "#1e3a8a" : "none"} strokeWidth={2} />
                       ))}
                     </Bar>
@@ -745,7 +835,7 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
                 </ResponsiveContainer>
               </div>
               <div className="flex-1 space-y-1.5 max-h-[500px] overflow-y-auto">
-                {accountGroups.map((g, i) => (
+                {filteredAccountGroups.map((g, i) => (
                   <button key={g.name}
                     onClick={() => setSelected(selected === g.name ? null : g.name)}
                     className={`w-full text-left rounded-lg px-3 py-2.5 border transition-all flex items-center gap-3 ${
@@ -786,22 +876,25 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
         {/* ===== HOLDING (consolidated) ===== */}
         {view === "holding" && (
           <div className="space-y-4">
+            <SearchInput value={searchTerm} onChange={setSearchTerm}
+              placeholder="Filter by symbol, name, or asset class…"
+              count={filteredHoldingGroups.length} total={holdingGroups.length} />
             <p className="text-xs text-gray-500">Same symbols across all accounts are consolidated. Click any row to see the per-account breakdown.</p>
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="lg:w-80 flex-shrink-0">
-                <ResponsiveContainer width="100%" height={Math.min(holdingGroups.length * 28, 400)}>
-                  <BarChart data={holdingGroups.slice(0, 15).map(g => ({ name: g.symbol, value: g.value }))} layout="vertical" margin={{ left: 5 }}>
+                <ResponsiveContainer width="100%" height={Math.min(filteredHoldingGroups.length * 28, 400)}>
+                  <BarChart data={filteredHoldingGroups.slice(0, 15).map(g => ({ name: g.symbol, value: g.value }))} layout="vertical" margin={{ left: 5 }}>
                     <XAxis type="number" tickFormatter={v => v >= 1e6 ? `$${(v/1e6).toFixed(1)}M` : `$${(v/1e3).toFixed(0)}K`} fontSize={10} />
                     <YAxis type="category" dataKey="name" width={70} tick={{ fontSize: 11, fontWeight: 600 }} />
                     <Tooltip content={<ChartTooltip />} />
                     <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                      {holdingGroups.slice(0, 15).map((_, i) => <Cell key={i} fill={PAL[i % PAL.length]} />)}
+                      {filteredHoldingGroups.slice(0, 15).map((_, i) => <Cell key={i} fill={PAL[i % PAL.length]} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
               <div className="flex-1">
-                <ConsolidatedTable groups={holdingGroups} total={total} selected={selected} onSelect={setSelected} />
+                <ConsolidatedTable groups={filteredHoldingGroups} total={total} selected={selected} onSelect={setSelected} />
               </div>
             </div>
             {selected && holdingGroups.find(g => g.symbol === selected) && (
@@ -825,9 +918,12 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
         {/* ===== STYLE ===== */}
         {view === "style" && (
           <div className="space-y-4">
+            <SearchInput value={searchTerm} onChange={setSearchTerm}
+              placeholder="Filter by style or symbol…"
+              count={filteredStyleGroups.length} total={styleGroups.length} />
             <p className="text-xs text-gray-500">Morningstar / Style Box classification. Click a style to drill down to individual holdings.</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-              {styleGroups.map(g => (
+              {filteredStyleGroups.map(g => (
                 <CategoryCard key={g.name} label={g.name} value={g.value} total={total}
                   isActive={selected === g.name} onClick={() => setSelected(selected === g.name ? null : g.name)}
                   count={g.items.length} />
@@ -849,19 +945,9 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
         {/* ===== ALL HOLDINGS (searchable) ===== */}
         {view === "all" && (
           <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1">
-                <input
-                  type="text" placeholder="Search symbol, name, account, asset class, type..."
-                  value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm"
-                />
-                <svg className="absolute left-3 top-3 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <span className="text-xs text-gray-400 whitespace-nowrap">{filteredAll.length} of {holdings.length}</span>
-            </div>
+            <SearchInput value={searchTerm} onChange={setSearchTerm}
+              placeholder="Search symbol, name, account, asset class, type…"
+              count={filteredAll.length} total={holdings.length} />
             <HoldingsTable data={filteredAll} total={total} showAssetClass={true} />
           </div>
         )}
