@@ -199,21 +199,72 @@ const CategoryCard = ({ label, value, total, isActive, onClick, count, colorClas
   </button>
 );
 
+/* ── column-resize hook ── */
+const useColumnWidths = (initial) => {
+  const [widths, setWidths] = useState(initial);
+  const widthsRef = useRef(initial);
+  const containerRef = useRef(null);
+
+  const startResize = useCallback((colIdx, e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = [...widthsRef.current];
+    const totalPx = containerRef.current?.offsetWidth ?? 800;
+    const onMove = (ev) => {
+      const delta = ((ev.clientX - startX) / totalPx) * 100;
+      const next = [...startW];
+      next[colIdx] = Math.max(4, startW[colIdx] + delta);
+      if (colIdx + 1 < next.length) {
+        next[colIdx + 1] = Math.max(4, startW[colIdx + 1] - delta);
+      }
+      widthsRef.current = next;
+      setWidths(next);
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, []);
+
+  return { widths, containerRef, startResize };
+};
+
 const HoldingsTable = ({ data, total, showAccount = true, showAssetClass = false }) => {
   const sorted = [...data].sort((a, b) => b.value - a.value);
   const subtotal = data.reduce((s, h) => s + h.value, 0);
+
+  const initWidths = useMemo(() => {
+    if (showAccount && showAssetClass) return [27, 21, 11, 9, 9, 13, 10];
+    if (showAccount)                   return [33, 27, 10, 10, 12,  8];
+    if (showAssetClass)                return [38, 14, 12, 12, 14, 10];
+    return                                    [42, 13, 14, 18, 13];
+  }, [showAccount, showAssetClass]);
+
+  const { widths, containerRef, startResize } = useColumnWidths(initWidths);
+  const nCols = initWidths.length;
+  // index of the Qty column (first numeric col)
+  const qi = 1 + (showAccount ? 1 : 0) + (showAssetClass ? 1 : 0);
+  const rh = (i) => (
+    <div onMouseDown={(e) => startResize(i, e)}
+      className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-300" />
+  );
+  const thBase = "py-2.5 px-3 relative select-none";
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200">
-      <table className="w-full text-left">
+    <div ref={containerRef} className="rounded-lg border border-gray-200">
+      <table className="w-full text-left table-fixed">
+        <colgroup>{widths.map((w, i) => <col key={i} style={{ width: `${w}%` }} />)}</colgroup>
         <thead>
           <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-400 tracking-wider">
-            <th className="py-2.5 px-3">Holding</th>
-            {showAccount && <th className="py-2.5 px-3">Account</th>}
-            {showAssetClass && <th className="py-2.5 px-3">Class</th>}
-            <th className="py-2.5 px-3 text-right">Qty</th>
-            <th className="py-2.5 px-3 text-right">Price</th>
-            <th className="py-2.5 px-3 text-right">Value</th>
-            <th className="py-2.5 px-3 text-right">Weight</th>
+            <th className={thBase}>{rh(0)}Holding</th>
+            {showAccount    && <th className={thBase}>{rh(1)}Account</th>}
+            {showAssetClass && <th className={thBase}>{rh(showAccount ? 2 : 1)}Class</th>}
+            <th className={`${thBase} text-right`}>{rh(qi)}Qty</th>
+            <th className={`${thBase} text-right`}>{rh(qi + 1)}Price</th>
+            <th className={`${thBase} text-right`}>{rh(qi + 2)}Value</th>
+            <th className="py-2.5 px-3 text-right select-none">Weight</th>
           </tr>
         </thead>
         <tbody>
@@ -221,11 +272,11 @@ const HoldingsTable = ({ data, total, showAccount = true, showAssetClass = false
             <tr key={i} className="border-b border-gray-100 hover:bg-blue-50/40 transition-colors">
               <td className="py-2 px-3">
                 <div className="font-semibold text-gray-800 text-sm">{h.symbol}</div>
-                <div className="text-xs text-gray-400 truncate max-w-52">{h.desc}</div>
+                <div className="text-xs text-gray-400 break-words">{h.desc}</div>
               </td>
               {showAccount && (
                 <td className="py-2 px-3">
-                  <div className="text-sm text-gray-700">{h.accountShort}</div>
+                  <div className="text-sm text-gray-700 break-words">{h.accountShort}</div>
                   <Badge className={getAccountTypeBadgeColor(h.account)}>{h.account}</Badge>
                 </td>
               )}
@@ -251,7 +302,7 @@ const HoldingsTable = ({ data, total, showAccount = true, showAssetClass = false
         </tbody>
         <tfoot>
           <tr className="bg-gray-50 border-t-2 border-gray-300">
-            <td colSpan={3 + (showAccount ? 1 : 0) + (showAssetClass ? 1 : 0)} className="py-2.5 px-3 font-bold text-sm text-gray-700">
+            <td colSpan={nCols - 2} className="py-2.5 px-3 font-bold text-sm text-gray-700">
               Subtotal ({sorted.length} items)
             </td>
             <td className="py-2.5 px-3 text-right font-bold text-sm text-gray-900">{fmt(subtotal)}</td>
@@ -264,16 +315,24 @@ const HoldingsTable = ({ data, total, showAccount = true, showAssetClass = false
 };
 
 const ConsolidatedTable = ({ groups, total, onSelect, selected }) => {
+  const { widths, containerRef, startResize } = useColumnWidths([35, 17, 23, 14, 11]);
+  const rh = (i) => (
+    <div onMouseDown={(e) => startResize(i, e)}
+      className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-300" />
+  );
+  const thBase = "py-2.5 px-3 relative select-none";
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200">
-      <table className="w-full text-left">
+    <div ref={containerRef} className="rounded-lg border border-gray-200">
+      <table className="w-full text-left table-fixed">
+        <colgroup>{widths.map((w, i) => <col key={i} style={{ width: `${w}%` }} />)}</colgroup>
         <thead>
           <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-400 tracking-wider">
-            <th className="py-2.5 px-3">Holding</th>
-            <th className="py-2.5 px-3">Asset Class</th>
-            <th className="py-2.5 px-3 text-center">Accounts</th>
-            <th className="py-2.5 px-3 text-right">Total Value</th>
-            <th className="py-2.5 px-3 text-right">Weight</th>
+            <th className={thBase}>{rh(0)}Holding</th>
+            <th className={thBase}>{rh(1)}Asset Class</th>
+            <th className={`${thBase} text-center`}>{rh(2)}Accounts</th>
+            <th className={`${thBase} text-right`}>{rh(3)}Total Value</th>
+            <th className="py-2.5 px-3 text-right select-none">Weight</th>
           </tr>
         </thead>
         <tbody>
@@ -285,7 +344,7 @@ const ConsolidatedTable = ({ groups, total, onSelect, selected }) => {
               }`}>
               <td className="py-2.5 px-3">
                 <div className="font-semibold text-gray-800 text-sm">{g.symbol}</div>
-                <div className="text-xs text-gray-400 truncate max-w-52">{g.desc}</div>
+                <div className="text-xs text-gray-400 break-words">{g.desc}</div>
               </td>
               <td className="py-2.5 px-3">
                 <Badge className={`bg-${getAssetClassColor(g.assetClass)}-100 text-${getAssetClassColor(g.assetClass)}-700`}>{g.assetClass}</Badge>
@@ -294,7 +353,7 @@ const ConsolidatedTable = ({ groups, total, onSelect, selected }) => {
                 {g.accounts.length > 1 ? (
                   <Badge className="bg-blue-100 text-blue-700">{g.accounts.length} accounts</Badge>
                 ) : (
-                  <span className="text-xs text-gray-500">{g.accounts[0]}</span>
+                  <span className="text-xs text-gray-500 break-words">{g.accounts[0]}</span>
                 )}
               </td>
               <td className="py-2.5 px-3 text-right font-semibold text-sm text-gray-800">{fmt(g.value)}</td>
