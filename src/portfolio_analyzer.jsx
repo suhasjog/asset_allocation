@@ -641,6 +641,8 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
     return [...list].sort((a, b) => b.value - a.value);
   }, [holdings, searchTerm]);
 
+  const consolidatedAll = useMemo(() => consolidateBySymbol(filteredAll), [filteredAll]);
+
   const filteredAssetClassGroups = useMemo(() => {
     if (!searchTerm) return assetClassGroups;
     const t = searchTerm.toLowerCase();
@@ -952,7 +954,11 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
                   <span className="text-sm text-gray-500">{fmt(accountGroups.find(g => g.name === selected).value)}</span>
                   <button onClick={() => setSelected(null)} className="ml-auto text-xs text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md transition-colors">✕ Close</button>
                 </div>
-                <HoldingsTable data={accountGroups.find(g => g.name === selected).items} total={total} showAccount={false} showAssetClass={true} />
+                <p className="text-xs text-gray-400 mb-2">Same symbol held in multiple lots is consolidated into one row.</p>
+                <ConsolidatedTable
+                  groups={consolidateBySymbol(accountGroups.find(g => g.name === selected).items)}
+                  total={total} selected={null} onSelect={() => {}}
+                />
               </div>
             )}
           </div>
@@ -1036,8 +1042,8 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
           <div className="space-y-3">
             <SearchInput value={searchTerm} onChange={setSearchTerm}
               placeholder="Search symbol, name, account, asset class, type…"
-              count={filteredAll.length} total={holdings.length} />
-            <HoldingsTable data={filteredAll} total={total} showAssetClass={true} />
+              count={consolidatedAll.length} total={holdingGroups.length} />
+            <ConsolidatedTable groups={consolidatedAll} total={total} selected={null} onSelect={() => {}} />
           </div>
         )}
       </div>
