@@ -519,10 +519,36 @@ const SearchInput = ({ value, onChange, placeholder, count, total }) => (
 );
 
 /* ───────── MAIN DASHBOARD ───────── */
+const VIEWS = ["overview","asset_class","account","holding","style","all"];
+const readHash = () => new URLSearchParams(window.location.hash.slice(1));
+
 const Dashboard = ({ holdings, asOfDate, onReset }) => {
-  const [view, setView] = useState("overview");
-  const [selected, setSelected] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [view, setView] = useState(() => { const v = readHash().get("view"); return VIEWS.includes(v) ? v : "overview"; });
+  const [selected, setSelected] = useState(() => readHash().get("selected"));
+  const [searchTerm, setSearchTerm] = useState(() => readHash().get("search") ?? "");
+
+  // Keep URL hash in sync with state (for sharing / bookmarking)
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (view !== "overview") p.set("view", view);
+    if (selected) p.set("selected", selected);
+    if (searchTerm) p.set("search", searchTerm);
+    const qs = p.toString();
+    history.replaceState(null, "", qs ? "#" + qs : location.pathname + location.search);
+  }, [view, selected, searchTerm]);
+
+  // Restore state on browser back / forward
+  useEffect(() => {
+    const onPop = () => {
+      const p = readHash();
+      const v = p.get("view");
+      setView(VIEWS.includes(v) ? v : "overview");
+      setSelected(p.get("selected"));
+      setSearchTerm(p.get("search") ?? "");
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   const total = useMemo(() => holdings.reduce((s, h) => s + h.value, 0), [holdings]);
   const pct = (v) => `${(v / total * 100).toFixed(1)}%`;
