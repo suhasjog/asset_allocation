@@ -1021,7 +1021,11 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
                   <span className="text-sm text-gray-500">{fmt(styleGroups.find(g => g.name === selected).value)} ({pct(styleGroups.find(g => g.name === selected).value)})</span>
                   <button onClick={() => setSelected(null)} className="ml-auto text-xs text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md transition-colors">✕ Close</button>
                 </div>
-                <HoldingsTable data={styleGroups.find(g => g.name === selected).items} total={total} />
+                <p className="text-xs text-gray-400 mb-2">Same symbol held in multiple accounts is consolidated into one row.</p>
+                <ConsolidatedTable
+                  groups={consolidateBySymbol(styleGroups.find(g => g.name === selected).items)}
+                  total={total} selected={null} onSelect={() => {}}
+                />
               </div>
             )}
           </div>
