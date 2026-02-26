@@ -393,24 +393,32 @@ const UploadScreen = ({ onData }) => {
   const [loadingSample, setLoadingSample] = useState(false);
   const fileRef = useRef();
 
-  const processFile = useCallback((file) => {
+  const processFile = useCallback(async (file) => {
     setError(null);
     if (!file) return;
-    if (!file.name.match(/\.(csv|txt)$/i)) {
-      setError("Please upload a .csv file");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const result = parseCSV(e.target.result);
-        if (result.holdings.length === 0) throw new Error("No holdings found in CSV");
-        onData(result);
-      } catch (err) {
-        setError(`Parse error: ${err.message}`);
+    const name = file.name.toLowerCase();
+
+    try {
+      let csvText;
+      if (name.match(/\.(xlsx|xls|ods)$/)) {
+        // Excel / Google Sheets export — lazy-load SheetJS to keep initial bundle small
+        const buffer = await file.arrayBuffer();
+        const { read, utils } = await import("xlsx");
+        const wb = read(buffer, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        csvText = utils.sheet_to_csv(ws);
+      } else if (name.match(/\.(csv|txt)$/)) {
+        csvText = await file.text();
+      } else {
+        setError("Please upload a CSV, Excel (.xlsx / .xls), or Google Sheets export file.");
+        return;
       }
-    };
-    reader.readAsText(file);
+      const result = parseCSV(csvText);
+      if (result.holdings.length === 0) throw new Error("No holdings found — check that the first sheet matches the expected Fidelity GPS format.");
+      onData(result);
+    } catch (err) {
+      setError(`Parse error: ${err.message}`);
+    }
   }, [onData]);
 
   const handleDrop = (e) => { e.preventDefault(); setDragOver(false); processFile(e.dataTransfer.files[0]); };
@@ -456,15 +464,15 @@ const UploadScreen = ({ onData }) => {
               ? "border-blue-400 bg-blue-500/10 scale-[1.02]"
               : "border-slate-600 bg-slate-800/50 hover:border-blue-500/50 hover:bg-slate-800/80"
           }`}>
-          <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden"
+          <input ref={fileRef} type="file" accept=".csv,.txt,.xlsx,.xls,.ods" className="hidden"
             onChange={(e) => processFile(e.target.files[0])} />
           <div className="mb-4">
             <svg className={`w-12 h-12 mx-auto transition-colors ${dragOver ? "text-blue-400" : "text-slate-500"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
             </svg>
           </div>
-          <p className="text-white font-medium">Drop your CSV here or click to browse</p>
-          <p className="text-slate-400 text-sm mt-1">Accepts Fidelity Guided Portfolio Summary (GPS) exports</p>
+          <p className="text-white font-medium">Drop your file here or click to browse</p>
+          <p className="text-slate-400 text-sm mt-1">CSV, Excel (.xlsx / .xls), or Google Sheets export</p>
         </div>
 
         <div className="mt-4 text-center">
@@ -481,11 +489,11 @@ const UploadScreen = ({ onData }) => {
         )}
 
         <div className="mt-6 rounded-xl bg-slate-800/50 border border-slate-700 px-4 py-3">
-          <p className="text-slate-300 text-xs font-medium mb-2">How to export from Fidelity:</p>
+          <p className="text-slate-300 text-xs font-medium mb-2">How to export your portfolio:</p>
           <ol className="text-slate-400 text-xs space-y-1 list-decimal list-inside">
-            <li>Log in to Fidelity.com → Portfolio → Guided Portfolio Summary</li>
-            <li>Click "Export" or "Download" to get the CSV</li>
-            <li>Upload the downloaded file here</li>
+            <li><span className="text-slate-300 font-medium">Fidelity:</span> Portfolio → Guided Portfolio Summary → Download (CSV or Excel)</li>
+            <li><span className="text-slate-300 font-medium">Google Sheets:</span> File → Download → Excel (.xlsx) or CSV</li>
+            <li><span className="text-slate-300 font-medium">Excel:</span> Save as .xlsx or .xls and upload directly</li>
           </ol>
         </div>
 
