@@ -97,12 +97,12 @@ const getAssetClassFromCSV = (row) => {
 const consolidateBySymbol = (items) => {
   const m = {};
   items.forEach(h => {
-    if (!m[h.symbol]) m[h.symbol] = { items: [], desc: h.desc, assetClass: h.assetClass };
+    if (!m[h.symbol]) m[h.symbol] = { items: [], desc: h.desc, assetClass: h.assetClass, rawSymbol: h._rawSymbol ?? h.symbol };
     m[h.symbol].items.push(h);
   });
   return Object.entries(m)
-    .map(([symbol, { items: its, desc, assetClass }]) => ({
-      symbol, desc, assetClass, items: its,
+    .map(([symbol, { items: its, desc, assetClass, rawSymbol }]) => ({
+      symbol, desc, assetClass, rawSymbol, items: its,
       value: its.reduce((s, h) => s + h.value, 0),
       accounts: [...new Set(its.map(h => h.accountShort))],
     }))
@@ -366,8 +366,9 @@ const ConsolidatedTable = ({ groups, total, onSelect, selected, onEdit = null, o
         </thead>
         <tbody>
           {groups.map((g, i) => {
-            const ov = overrides[g.symbol] || {};
-            const isOverridden = !!(ov.assetClass || ov.desc || ov.value !== undefined);
+            const key = g.rawSymbol ?? g.symbol;
+            const ov = overrides[key] || {};
+            const isOverridden = !!(ov.symbol || ov.assetClass || ov.desc || ov.value !== undefined);
             const acColor = getAssetClassColor(g.assetClass);
             return (
               <tr key={i}
@@ -376,10 +377,15 @@ const ConsolidatedTable = ({ groups, total, onSelect, selected, onEdit = null, o
                   selected === g.symbol ? "bg-blue-50 border-blue-200" : "hover:bg-gray-50"
                 }`}>
                 <td className="py-2.5 px-3">
-                  <div className="font-semibold text-gray-800 text-sm">{g.symbol}</div>
+                  {onEdit ? (
+                    <InlineEdit value={g.symbol} className={`font-semibold text-gray-800 text-sm ${ov.symbol ? "text-amber-700" : ""}`}
+                      onSave={v => v.trim() && onEdit(key, "symbol", v.trim().toUpperCase())} />
+                  ) : (
+                    <div className="font-semibold text-gray-800 text-sm">{g.symbol}</div>
+                  )}
                   {onEdit ? (
                     <InlineEdit value={g.desc} className="text-xs text-gray-400 break-words"
-                      onSave={v => onEdit(g.symbol, "desc", v)} />
+                      onSave={v => onEdit(key, "desc", v)} />
                   ) : (
                     <div className="text-xs text-gray-400 break-words">{g.desc}</div>
                   )}
@@ -387,7 +393,7 @@ const ConsolidatedTable = ({ groups, total, onSelect, selected, onEdit = null, o
                 <td className="py-2.5 px-3" onClick={e => onEdit && e.stopPropagation()}>
                   {onEdit ? (
                     <InlineEdit value={g.assetClass} options={ASSET_CLASSES}
-                      onSave={v => onEdit(g.symbol, "assetClass", v)}
+                      onSave={v => onEdit(key, "assetClass", v)}
                       display={
                         <Badge className={`bg-${acColor}-100 text-${acColor}-700 cursor-text hover:ring-1 hover:ring-blue-300 ${ov.assetClass ? "ring-1 ring-amber-400" : ""}`}>
                           {g.assetClass}{ov.assetClass ? " ✎" : ""}
@@ -408,7 +414,7 @@ const ConsolidatedTable = ({ groups, total, onSelect, selected, onEdit = null, o
                   {onEdit ? (
                     <InlineEdit value={g.value} className={`font-semibold text-sm text-right ${ov.value !== undefined ? "text-amber-600" : "text-gray-800"}`}
                       display={<span className={`font-semibold text-sm ${ov.value !== undefined ? "text-amber-600" : "text-gray-800"}`}>{fmt(g.value)}{ov.value !== undefined ? " ✎" : ""}</span>}
-                      onSave={v => { const n = parseFloat(v.replace(/[$,]/g, "")); if (!isNaN(n) && n >= 0) onEdit(g.symbol, "value", n); }} />
+                      onSave={v => { const n = parseFloat(v.replace(/[$,]/g, "")); if (!isNaN(n) && n >= 0) onEdit(key, "value", n); }} />
                   ) : (
                     <span className="font-semibold text-sm text-gray-800">{fmt(g.value)}</span>
                   )}
@@ -633,14 +639,14 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
   const clearOverrides = useCallback(() => setOverrides({}), []);
 
   const holdingsWithOverrides = useMemo(() => {
-    if (Object.keys(overrides).length === 0) return holdings;
     // pre-compute per-symbol totals so value overrides can be distributed proportionally
     const symTotals = {};
     holdings.forEach(h => { symTotals[h.symbol] = (symTotals[h.symbol] || 0) + h.value; });
     return holdings.map(h => {
       const ov = overrides[h.symbol];
-      if (!ov) return h;
-      const out = { ...h };
+      if (!ov) return { ...h, _rawSymbol: h.symbol };
+      const out = { ...h, _rawSymbol: h.symbol };
+      if (ov.symbol)     out.symbol = ov.symbol.toUpperCase();
       if (ov.assetClass) out.assetClass = ov.assetClass;
       if (ov.desc)       out.desc = ov.desc;
       if (ov.value !== undefined && symTotals[h.symbol] > 0)
@@ -680,12 +686,12 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
     const m = {};
     holdingsWithOverrides.forEach(h => {
       const key = h.symbol;
-      if (!m[key]) m[key] = { items: [], desc: h.desc, assetClass: h.assetClass };
+      if (!m[key]) m[key] = { items: [], desc: h.desc, assetClass: h.assetClass, rawSymbol: h._rawSymbol ?? h.symbol };
       m[key].items.push(h);
     });
     return Object.entries(m)
-      .map(([symbol, { items, desc, assetClass }]) => ({
-        symbol, desc, assetClass, items,
+      .map(([symbol, { items, desc, assetClass, rawSymbol }]) => ({
+        symbol, desc, assetClass, rawSymbol, items,
         value: items.reduce((s, h) => s + h.value, 0),
         totalQty: items.reduce((s, h) => s + h.qty, 0),
         accounts: [...new Set(items.map(h => h.accountShort))],
