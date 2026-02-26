@@ -314,8 +314,9 @@ const HoldingsTable = ({ data, total, showAccount = true, showAssetClass = false
   );
 };
 
-const ConsolidatedTable = ({ groups, total, onSelect, selected }) => {
+const ConsolidatedTable = ({ groups, total, onSelect, selected, onReclassify = null, overrides = {} }) => {
   const { widths, containerRef, startResize } = useColumnWidths([35, 17, 23, 14, 11]);
+  const [editingSymbol, setEditingSymbol] = useState(null);
   const rh = (i) => (
     <div onMouseDown={(e) => startResize(i, e)}
       className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-300" />
@@ -329,37 +330,58 @@ const ConsolidatedTable = ({ groups, total, onSelect, selected }) => {
         <thead>
           <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-400 tracking-wider">
             <th className={thBase}>{rh(0)}Holding</th>
-            <th className={thBase}>{rh(1)}Asset Class</th>
+            <th className={thBase}>{rh(1)}Asset Class {onReclassify && <span className="normal-case text-gray-300 font-normal">(click to edit)</span>}</th>
             <th className={`${thBase} text-center`}>{rh(2)}Accounts</th>
             <th className={`${thBase} text-right`}>{rh(3)}Total Value</th>
             <th className="py-2.5 px-3 text-right select-none">Weight</th>
           </tr>
         </thead>
         <tbody>
-          {groups.map((g, i) => (
-            <tr key={i}
-              onClick={() => onSelect(selected === g.symbol ? null : g.symbol)}
-              className={`border-b border-gray-100 cursor-pointer transition-colors ${
-                selected === g.symbol ? "bg-blue-50 border-blue-200" : "hover:bg-gray-50"
-              }`}>
-              <td className="py-2.5 px-3">
-                <div className="font-semibold text-gray-800 text-sm">{g.symbol}</div>
-                <div className="text-xs text-gray-400 break-words">{g.desc}</div>
-              </td>
-              <td className="py-2.5 px-3">
-                <Badge className={`bg-${getAssetClassColor(g.assetClass)}-100 text-${getAssetClassColor(g.assetClass)}-700`}>{g.assetClass}</Badge>
-              </td>
-              <td className="py-2.5 px-3 text-center">
-                {g.accounts.length > 1 ? (
-                  <Badge className="bg-blue-100 text-blue-700">{g.accounts.length} accounts</Badge>
-                ) : (
-                  <span className="text-xs text-gray-500 break-words">{g.accounts[0]}</span>
-                )}
-              </td>
-              <td className="py-2.5 px-3 text-right font-semibold text-sm text-gray-800">{fmt(g.value)}</td>
-              <td className="py-2.5 px-3 text-right text-sm text-gray-500">{(g.value / total * 100).toFixed(2)}%</td>
-            </tr>
-          ))}
+          {groups.map((g, i) => {
+            const isOverridden = !!overrides[g.symbol];
+            return (
+              <tr key={i}
+                onClick={() => onSelect(selected === g.symbol ? null : g.symbol)}
+                className={`border-b border-gray-100 cursor-pointer transition-colors ${
+                  selected === g.symbol ? "bg-blue-50 border-blue-200" : "hover:bg-gray-50"
+                }`}>
+                <td className="py-2.5 px-3">
+                  <div className="font-semibold text-gray-800 text-sm">{g.symbol}</div>
+                  <div className="text-xs text-gray-400 break-words">{g.desc}</div>
+                </td>
+                <td className="py-2.5 px-3" onClick={(e) => onReclassify && e.stopPropagation()}>
+                  {onReclassify && editingSymbol === g.symbol ? (
+                    <select
+                      autoFocus
+                      value={g.assetClass}
+                      onChange={(e) => { onReclassify(g.symbol, e.target.value); setEditingSymbol(null); }}
+                      onBlur={() => setEditingSymbol(null)}
+                      className="text-xs border border-blue-400 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    >
+                      {ASSET_CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  ) : (
+                    <Badge
+                      onClick={onReclassify ? () => setEditingSymbol(g.symbol) : undefined}
+                      className={`bg-${getAssetClassColor(g.assetClass)}-100 text-${getAssetClassColor(g.assetClass)}-700 ${onReclassify ? "cursor-pointer hover:ring-1 hover:ring-blue-300" : ""} ${isOverridden ? "ring-1 ring-amber-400" : ""}`}
+                      title={isOverridden ? `Reclassified (click to change)` : onReclassify ? "Click to reclassify" : undefined}
+                    >
+                      {g.assetClass}{isOverridden ? " ✎" : ""}
+                    </Badge>
+                  )}
+                </td>
+                <td className="py-2.5 px-3 text-center">
+                  {g.accounts.length > 1 ? (
+                    <Badge className="bg-blue-100 text-blue-700">{g.accounts.length} accounts</Badge>
+                  ) : (
+                    <span className="text-xs text-gray-500 break-words">{g.accounts[0]}</span>
+                  )}
+                </td>
+                <td className="py-2.5 px-3 text-right font-semibold text-sm text-gray-800">{fmt(g.value)}</td>
+                <td className="py-2.5 px-3 text-right text-sm text-gray-500">{(g.value / total * 100).toFixed(2)}%</td>
+              </tr>
+            );
+          })}
         </tbody>
         <tfoot>
           <tr className="bg-gray-50 border-t-2 border-gray-300">
@@ -527,6 +549,7 @@ const SearchInput = ({ value, onChange, placeholder, count, total }) => (
 );
 
 /* ───────── MAIN DASHBOARD ───────── */
+const ASSET_CLASSES = ["US Equity","Intl Equity","US Bonds","Intl Bonds","Cash","Real Estate","Commodities","Other"];
 const VIEWS = ["overview","asset_class","account","holding","style","all"];
 const readHash = () => new URLSearchParams(window.location.hash.slice(1));
 
@@ -558,24 +581,39 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
+  /* overrides: symbol → asset class, persisted in localStorage */
+  const [overrides, setOverrides] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("assetOverrides") || "{}"); } catch { return {}; }
+  });
+  useEffect(() => { localStorage.setItem("assetOverrides", JSON.stringify(overrides)); }, [overrides]);
+  const reclassify = useCallback((symbol, assetClass) =>
+    setOverrides(prev => ({ ...prev, [symbol]: assetClass })), []);
+  const clearOverrides = useCallback(() => setOverrides({}), []);
+
+  const holdingsWithOverrides = useMemo(() =>
+    Object.keys(overrides).length === 0
+      ? holdings
+      : holdings.map(h => overrides[h.symbol] ? { ...h, assetClass: overrides[h.symbol] } : h),
+    [holdings, overrides]);
+
   const total = useMemo(() => holdings.reduce((s, h) => s + h.value, 0), [holdings]);
   const pct = (v) => `${(v / total * 100).toFixed(1)}%`;
 
   /* grouped data */
   const assetClassGroups = useMemo(() => {
     const m = {};
-    holdings.forEach(h => {
+    holdingsWithOverrides.forEach(h => {
       if (!m[h.assetClass]) m[h.assetClass] = [];
       m[h.assetClass].push(h);
     });
     return Object.entries(m)
       .map(([name, items]) => ({ name, items, value: items.reduce((s, h) => s + h.value, 0) }))
       .sort((a, b) => b.value - a.value);
-  }, [holdings]);
+  }, [holdingsWithOverrides]);
 
   const accountGroups = useMemo(() => {
     const m = {};
-    holdings.forEach(h => {
+    holdingsWithOverrides.forEach(h => {
       const key = h.accountShort;
       if (!m[key]) m[key] = { items: [], account: h.account };
       m[key].items.push(h);
@@ -583,11 +621,11 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
     return Object.entries(m)
       .map(([name, { items, account }]) => ({ name, items, account, value: items.reduce((s, h) => s + h.value, 0) }))
       .sort((a, b) => b.value - a.value);
-  }, [holdings]);
+  }, [holdingsWithOverrides]);
 
   const holdingGroups = useMemo(() => {
     const m = {};
-    holdings.forEach(h => {
+    holdingsWithOverrides.forEach(h => {
       const key = h.symbol;
       if (!m[key]) m[key] = { items: [], desc: h.desc, assetClass: h.assetClass };
       m[key].items.push(h);
@@ -600,11 +638,11 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
         accounts: [...new Set(items.map(h => h.accountShort))],
       }))
       .sort((a, b) => b.value - a.value);
-  }, [holdings]);
+  }, [holdingsWithOverrides]);
 
   const styleGroups = useMemo(() => {
     const m = {};
-    holdings.forEach(h => {
+    holdingsWithOverrides.forEach(h => {
       const style = h.stockStyle || h.assetClass || "Other";
       if (!m[style]) m[style] = [];
       m[style].push(h);
@@ -612,7 +650,7 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
     return Object.entries(m)
       .map(([name, items]) => ({ name, items, value: items.reduce((s, h) => s + h.value, 0) }))
       .sort((a, b) => b.value - a.value);
-  }, [holdings]);
+  }, [holdingsWithOverrides]);
 
   /* derived metrics */
   const metrics = useMemo(() => {
@@ -625,19 +663,19 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
     const usEq = assetClassGroups.find(g => g.name === "US Equity")?.value || 0;
     const intlEq = assetClassGroups.find(g => g.name === "Intl Equity")?.value || 0;
     const invested = equityVal + bondVal;
-    const individualStocks = holdings.filter(h => h.type.toLowerCase() === "equity").reduce((s, h) => s + h.value, 0);
+    const individualStocks = holdingsWithOverrides.filter(h => h.type.toLowerCase() === "equity").reduce((s, h) => s + h.value, 0);
     return { equityVal, bondVal, cashVal, usEq, intlEq, invested, individualStocks,
       stockPct: invested > 0 ? (equityVal / invested * 100).toFixed(0) : 0,
       bondPct: invested > 0 ? (bondVal / invested * 100).toFixed(0) : 0,
       usPct: equityVal > 0 ? (usEq / equityVal * 100).toFixed(0) : 0,
       intlPct: equityVal > 0 ? (intlEq / equityVal * 100).toFixed(0) : 0,
     };
-  }, [assetClassGroups, holdings]);
+  }, [assetClassGroups, holdingsWithOverrides]);
 
   const filteredAll = useMemo(() => {
     const term = searchTerm.toLowerCase();
     const list = term
-      ? holdings.filter(h =>
+      ? holdingsWithOverrides.filter(h =>
           h.symbol.toLowerCase().includes(term) ||
           h.desc.toLowerCase().includes(term) ||
           h.accountShort.toLowerCase().includes(term) ||
@@ -645,9 +683,9 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
           h.account.toLowerCase().includes(term) ||
           h.type.toLowerCase().includes(term)
         )
-      : holdings;
+      : holdingsWithOverrides;
     return [...list].sort((a, b) => b.value - a.value);
-  }, [holdings, searchTerm]);
+  }, [holdingsWithOverrides, searchTerm]);
 
   const consolidatedAll = useMemo(() => consolidateBySymbol(filteredAll), [filteredAll]);
 
@@ -715,12 +753,18 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-xl font-bold tracking-tight">Portfolio Analysis</h1>
                 <button onClick={onReset}
                   className="text-xs bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg transition-colors">
                   ↺ New File
                 </button>
+                {Object.keys(overrides).length > 0 && (
+                  <span className="flex items-center gap-1.5 text-xs bg-amber-400/20 text-amber-200 border border-amber-400/30 px-2.5 py-1 rounded-lg">
+                    ✎ {Object.keys(overrides).length} override{Object.keys(overrides).length !== 1 ? "s" : ""}
+                    <button onClick={clearOverrides} className="hover:text-white transition-colors" title="Clear all overrides">✕</button>
+                  </span>
+                )}
               </div>
               {asOfDate && <p className="text-blue-300/60 text-xs mt-0.5">As of {asOfDate}</p>}
             </div>
@@ -900,7 +944,7 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
                 <p className="text-xs text-gray-400 mb-2">Same symbol held in multiple accounts is consolidated into one row.</p>
                 <ConsolidatedTable
                   groups={consolidateBySymbol(assetClassGroups.find(g => g.name === selected).items)}
-                  total={total} selected={null} onSelect={() => {}}
+                  total={total} selected={null} onSelect={() => {}} onReclassify={reclassify} overrides={overrides}
                 />
               </div>
             )}
@@ -965,7 +1009,7 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
                 <p className="text-xs text-gray-400 mb-2">Same symbol held in multiple lots is consolidated into one row.</p>
                 <ConsolidatedTable
                   groups={consolidateBySymbol(accountGroups.find(g => g.name === selected).items)}
-                  total={total} selected={null} onSelect={() => {}}
+                  total={total} selected={null} onSelect={() => {}} onReclassify={reclassify} overrides={overrides}
                 />
               </div>
             )}
@@ -993,7 +1037,7 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
                 </ResponsiveContainer>
               </div>
               <div className="flex-1">
-                <ConsolidatedTable groups={filteredHoldingGroups} total={total} selected={selected} onSelect={setSelected} />
+                <ConsolidatedTable groups={filteredHoldingGroups} total={total} selected={selected} onSelect={setSelected} onReclassify={reclassify} overrides={overrides} />
               </div>
             </div>
             {selected && holdingGroups.find(g => g.symbol === selected) && (
@@ -1038,7 +1082,7 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
                 <p className="text-xs text-gray-400 mb-2">Same symbol held in multiple accounts is consolidated into one row.</p>
                 <ConsolidatedTable
                   groups={consolidateBySymbol(styleGroups.find(g => g.name === selected).items)}
-                  total={total} selected={null} onSelect={() => {}}
+                  total={total} selected={null} onSelect={() => {}} onReclassify={reclassify} overrides={overrides}
                 />
               </div>
             )}
@@ -1051,7 +1095,7 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
             <SearchInput value={searchTerm} onChange={setSearchTerm}
               placeholder="Search symbol, name, account, asset class, type…"
               count={consolidatedAll.length} total={holdingGroups.length} />
-            <ConsolidatedTable groups={consolidatedAll} total={total} selected={null} onSelect={() => {}} />
+            <ConsolidatedTable groups={consolidatedAll} total={total} selected={null} onSelect={() => {}} onReclassify={reclassify} overrides={overrides} />
           </div>
         )}
       </div>
