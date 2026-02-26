@@ -181,8 +181,8 @@ const parseCSV = (text) => {
 };
 
 /* ───────── sub-components ───────── */
-const Badge = ({ children, className = "" }) => (
-  <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${className}`}>{children}</span>
+const Badge = ({ children, className = "", ...props }) => (
+  <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${className}`} {...props}>{children}</span>
 );
 
 const CategoryCard = ({ label, value, total, isActive, onClick, count, colorClass }) => (
