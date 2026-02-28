@@ -97,12 +97,11 @@ const getAssetClassFromCSV = (row) => {
 const consolidateBySymbol = (items) => {
   const m = {};
   items.forEach(h => {
-    const groupKey = h._rawSymbol ?? h.symbol;
-    if (!m[groupKey]) m[groupKey] = { items: [], symbol: h.symbol, desc: h.desc, assetClass: h.assetClass };
-    m[groupKey].items.push(h);
+    if (!m[h.symbol]) m[h.symbol] = { items: [], desc: h.desc, assetClass: h.assetClass, rawSymbol: h._rawSymbol ?? h.symbol };
+    m[h.symbol].items.push(h);
   });
   return Object.entries(m)
-    .map(([rawSymbol, { items: its, symbol, desc, assetClass }]) => ({
+    .map(([symbol, { items: its, desc, assetClass, rawSymbol }]) => ({
       symbol, desc, assetClass, rawSymbol, items: its,
       value: its.reduce((s, h) => s + h.value, 0),
       accounts: [...new Set(its.map(h => h.accountShort))],
@@ -344,7 +343,7 @@ const InlineEdit = ({ value, onSave, options = null, display = null, className =
   );
 };
 
-const ConsolidatedTable = ({ groups, total, onSelect, selected, onEdit = null, overrides = {} }) => {
+const ConsolidatedTable = ({ groups, total, onSelect, selected, onEdit = null, overrides = {}, accountScope = null }) => {
   const { widths, containerRef, startResize } = useColumnWidths([35, 17, 23, 14, 11]);
   const rh = (i) => (
     <div onMouseDown={(e) => startResize(i, e)}
@@ -367,16 +366,16 @@ const ConsolidatedTable = ({ groups, total, onSelect, selected, onEdit = null, o
         </thead>
         <tbody>
           {groups.map((g, i) => {
-            const key = g.rawSymbol;
-            const ov = overrides[key] || {};
+            const key = accountScope ? `${g.rawSymbol}|${accountScope}` : g.rawSymbol;
+            const ov = overrides[key] || overrides[g.rawSymbol] || {};
             const isOverridden = !!(ov.symbol || ov.assetClass || ov.desc || ov.value !== undefined);
-            const isRenamed = ov.symbol && ov.symbol.toUpperCase() !== key.toUpperCase();
+            const isRenamed = !!(ov.symbol && ov.symbol.toUpperCase() !== g.rawSymbol.toUpperCase());
             const acColor = getAssetClassColor(g.assetClass);
             return (
               <tr key={i}
-                onClick={() => onSelect(selected === g.rawSymbol ? null : g.rawSymbol)}
+                onClick={() => onSelect(selected === g.symbol ? null : g.symbol)}
                 className={`border-b border-gray-100 cursor-pointer transition-colors ${
-                  selected === g.rawSymbol ? "bg-blue-50 border-blue-200" : "hover:bg-gray-50"
+                  selected === g.symbol ? "bg-blue-50 border-blue-200" : "hover:bg-gray-50"
                 }`}>
                 <td className="py-2.5 px-3">
                   {onEdit ? (
@@ -648,7 +647,9 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
     const symTotals = {};
     holdings.forEach(h => { symTotals[h.symbol] = (symTotals[h.symbol] || 0) + h.value; });
     return holdings.map(h => {
-      const ov = overrides[h.symbol];
+      // account-scoped key takes priority over global key
+      const acctKey = `${h.symbol}|${h.accountShort}`;
+      const ov = overrides[acctKey] ?? overrides[h.symbol] ?? null;
       if (!ov) return { ...h, _rawSymbol: h.symbol };
       const out = { ...h, _rawSymbol: h.symbol };
       if (ov.symbol)     out.symbol = ov.symbol.toUpperCase();
@@ -690,12 +691,11 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
   const holdingGroups = useMemo(() => {
     const m = {};
     holdingsWithOverrides.forEach(h => {
-      const groupKey = h._rawSymbol ?? h.symbol;
-      if (!m[groupKey]) m[groupKey] = { items: [], symbol: h.symbol, desc: h.desc, assetClass: h.assetClass };
-      m[groupKey].items.push(h);
+      if (!m[h.symbol]) m[h.symbol] = { items: [], desc: h.desc, assetClass: h.assetClass, rawSymbol: h._rawSymbol ?? h.symbol };
+      m[h.symbol].items.push(h);
     });
     return Object.entries(m)
-      .map(([rawSymbol, { items, symbol, desc, assetClass }]) => ({
+      .map(([symbol, { items, desc, assetClass, rawSymbol }]) => ({
         symbol, desc, assetClass, rawSymbol, items,
         value: items.reduce((s, h) => s + h.value, 0),
         totalQty: items.reduce((s, h) => s + h.qty, 0),
@@ -1074,6 +1074,7 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
                 <ConsolidatedTable
                   groups={consolidateBySymbol(accountGroups.find(g => g.name === selected).items)}
                   total={total} selected={null} onSelect={() => {}} onEdit={onEdit} overrides={overrides}
+                  accountScope={selected}
                 />
               </div>
             )}
@@ -1104,21 +1105,19 @@ const Dashboard = ({ holdings, asOfDate, onReset }) => {
                 <ConsolidatedTable groups={filteredHoldingGroups} total={total} selected={selected} onSelect={setSelected} onEdit={onEdit} overrides={overrides} />
               </div>
             </div>
-            {selected && holdingGroups.find(g => g.rawSymbol === selected) && (
+            {selected && holdingGroups.find(g => g.symbol === selected) && (
               <div className="pt-4 border-t border-gray-200">
-                {(() => { const sg = holdingGroups.find(g => g.rawSymbol === selected); return (<>
                 <div className="flex items-center gap-3 mb-2">
-                  <h3 className="font-bold text-gray-800 text-lg">{sg.symbol}</h3>
-                  <span className="text-sm text-gray-500">{sg.desc}</span>
+                  <h3 className="font-bold text-gray-800 text-lg">{selected}</h3>
+                  <span className="text-sm text-gray-500">{holdingGroups.find(g => g.symbol === selected).desc}</span>
                   <button onClick={() => setSelected(null)} className="ml-auto text-xs text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md transition-colors">✕ Close</button>
                 </div>
                 <p className="text-xs text-gray-500 mb-3">
-                  Total: <strong>{fmt(sg.value)}</strong> across{" "}
-                  <strong>{sg.accounts.length}</strong> account(s):{" "}
-                  {sg.accounts.join(", ")}
+                  Total: <strong>{fmt(holdingGroups.find(g => g.symbol === selected).value)}</strong> across{" "}
+                  <strong>{holdingGroups.find(g => g.symbol === selected).accounts.length}</strong> account(s):{" "}
+                  {holdingGroups.find(g => g.symbol === selected).accounts.join(", ")}
                 </p>
-                <HoldingsTable data={sg.items} total={total} />
-                </>); })()}
+                <HoldingsTable data={holdingGroups.find(g => g.symbol === selected).items} total={total} />
               </div>
             )}
           </div>
